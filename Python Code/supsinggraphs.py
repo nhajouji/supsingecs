@@ -1,6 +1,11 @@
 # The following program takes as input a prime p,
 # and returns a list of supersingular j values.
 
+
+#################
+# Getting primes#
+#################
+
 # To get started, we need a prime.
 # primesBetween(a,b) returns a list of all primes p satisfying a<= p <= b.
 
@@ -60,6 +65,11 @@ def primesBetween(a,b):
     return primes
 
 
+
+#######################
+# Computing in F_(p^2)#
+#######################
+
 # We will be working in F_p^2, so we will construct a class that represents
 # elements in that field
 
@@ -113,8 +123,9 @@ def invMod(a,p):
 # To describe an element in a field Fp2, we need to specify:
 # The prime p, a nonsquare ns, and the two coefficients a,b
 
-
-
+############
+# Fp2 class#
+############
 
 class ElementFp2:
 # The class is initialized by specifying the 4 integers (p, ns, a, b).
