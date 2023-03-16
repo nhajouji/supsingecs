@@ -984,14 +984,19 @@ class supSingFp2:
         else:
             return 'Not found'
 
-    # This computes j-invariant of pt = (x,y) on X_0(11)
-    # Note that (x,y) should not be a point of order 5
+   # This computes j-invariant of pt = (x,y) on X_0(11)
     def jX0l11(self,pt):
         p = self.char
         ns = self.nonsquare
         t0 = ElementFp2(p,ns,1,0)
         x = pt[0]
         y = pt[1]
+        if x.vec == (16%p,0) and y.vec== ((-60)%p,0):
+            return t0.scale((-11*131%p)*(131*131 %p))
+        elif x.vec == (5,0) and y.vec== ((-5)%p,0):
+            return t0.scale(-(2**15))
+        elif x.vec == (5,0):
+            return t0.scale(-121)
         x2 = x*x
         x3 = x2*x
         x4 = x3*x
@@ -1000,23 +1005,94 @@ class supSingFp2:
         if num0.norm() == 0:
             return num0
         num = num0**3
-        den=((t0.scale(51)+x.scale(-29)+x2.scale(4)+y.scale(4)-xy)**2)
+        den=((t0.scale(51)+x.scale(-29)+x2.scale(4)+y.scale(4)-x*y))**2
         den*= (t0.scale(19)+x.scale(-5)+y)
         return num//den
 
-    # For l = 11, we will do following:
-    # Check if -121, -11*131^3, -2^15 ss; if they are, add relevant edges
-    # to graph.
-    # For z0 in Fq, z0 != 5, 16, find all pts (z0,w) on X_0(11)-
-    # There are 0, 1 or 2 such points.
-    # For each of those points, we compute j11(z0,w)
-    # If j11(z0,w) is supersingular, we compute (z1,w1) = (16,61)-(z0,w),
-    # evaluate j11(z1,w1) and add the edges to the graph.
+    def jX0l11iso(self,pt):
+        p = self.char
+        ns = self.nonsquare
+        t0 = ElementFp2(p,ns,1,0)
+        x = pt[0]
+        y = pt[1]
+        if x.vec == (16%p,0) and y.vec== ((-60)%p,0):
+            return t0.scale(-121)
+        elif x.vec == (5,0) and y.vec== ((-5)%p,0):
+            return t0.scale(-(2**15))
+        elif x.vec == (5,0):
+            return t0.scale((-11*131%p)*(131*131 %p))
+        x2 = x*x
+        x3 = x2*x
+        xisoN = (x2.scale(16)+x.scale(214)+y.scale(121)+t0.scale(-260))
+        yisoN = x3.scale(61)+x2.scale(2759)+(x*y).scale(726)+x.scale(-3730)
+        yisoN+=y.scale(3025)+t0.scale(-18020)
+        d0 = x + t0.scale(-16)
+        dx = d0*d0
+        xiso = xisoN//dx
+        yiso = yisoN//(dx*d0)
+        xy2 = (xiso,yiso)
+        return self.jX0l11(xy2)
+
+    def x11ptsFromInt(self,i):
+        p = self.char
+        ns = self.nonsquare
+        t0 = ElementFp2(p,ns,1,0)
+        if i == 16:
+            return [(t0.scale(16),t0.scale(-60))]
+        half = t0.scale((p+1)//2)
+        x = ElementFp2(p,ns,i%p,i//p)
+        x2 = x*x
+        x3 = x2*x
+        d = t0.scale(-79)+x.scale(-40)+x2.scale(-4)+x3.scale(4)
+        if d.norm() == 0:
+            return [(x,half)]
+        di = self.pl[1][d.vec]
+        if di%2 == 1:
+            return []
+        else:
+            rtdvec = self.pl[0][di//2]
+            rtd = ElementFp2(p,ns,rtdvec[0],rtdvec[1])
+            y1 = (t0+rtd)*half
+            y2 = (t0-rtd)*half
+            return [(x,y1),(x,y2)]
+
+    def isoG11(self):
+        p = self.char
+        ns = self.nonsquare
+        t0 = ElementFp2(p,ns,1,0)
+        js = self.js()
+        jvs = [j.vec for j in js]
+        ssns = [0 for i in range(p**2)]
+        for j in jvs:
+            ssns[j[0]+p*j[1]]+=1
+        edges = {jv:[] for jv in jvs}
+        edgesSeen = 0
+        n = 0
+        while n + 1 < p**2 and edgesSeen < len(jvs)*12:
+            ptns = self.x11ptsFromInt(n)
+            for pt in ptns:
+                jpt = self.jX0l11(pt)
+                jtv = jpt.vec
+                if ssns[jtv[0]+p*jtv[1]]>0:
+                    jtv2 = (self.jX0l11iso(pt)).vec
+                    edges[jtv].append(jtv2)
+                    edgesSeen+=1
+                    if jtv == (0,0) and jtv2!= (0,0):
+                        edges[jtv]+=2*[jtv2]
+                        edgesSeen+=2
+                    if jtv == (1728%p,0) and jtv2!= jtv:
+                        edges[jtv]+=[jtv2]
+                        edgesSeen+=1
+            n+=1
+        return edges
+                    
         
 
     def isoG(self,l):
         if l == 2:
             return self.iso2graph
+        elif l == 11:
+            return self.isoG11()
         elif l == 5:
             c = 125
         elif l == 7:
@@ -1058,13 +1134,16 @@ class supSingFp2:
             n+=1
         return edges
 
+
     def mat(self,l):
-        if l not in [2,3,5,7,13]:
+        if l not in [2,3,5,7,11,13]:
             return 'Not found'
         else:
             p = self.char
             graph = self.isoG(l)
             return graph2mat(graph,p)
+    
+
     
 
     # This will eventually be removed, as it does the same thing as graph3
