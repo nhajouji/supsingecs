@@ -2,7 +2,6 @@
 # Supersingular Isogeny Graphs #
 ################################
 
-
 #############################
 # Tools for computing in Fp #
 #############################
@@ -257,7 +256,21 @@ class ElementFp2:
             sqrt1 = ElementFp2(p,x1,y1)
             sqrt2 = (-1)*sqrt1
             return [sqrt1,sqrt2]
-                
+
+    def minPolyCoefs(self):
+        a = self.proj1
+        b = self.proj2
+        p = self.char
+        if b == 0:
+            return [(-a)%p,1,0]
+        else:
+            return [self.norm(),(-1*self.trace())%p,1]
+
+
+# solveQuadFp2 is used in the computation of the l-isogeny graphs for l = 2,11
+# Input 1: A pair (a,b),with a,b in Fp2, that represents x^2+a*x + b = 0
+# Input 2: A dictionary whose keys are integers r in range(0,p), and where
+# the values are (possibly empty) lists containing square roots of r in Z/pZ.
 
 def solveQuadFp2(ab,dic):
     a = ab[0]
@@ -266,7 +279,16 @@ def solveQuadFp2(ab,dic):
     cp = a//ElementFp2(p,-2)
     disc = a*a+((-4)*b)
     return [cp+(invMod(2,p)*rtd) for rtd in disc.sqrts(dic)]
+# Note that input 2 can be obtained using sqrtDFp.
 
+# findRootFp 
+# Input 1: A list of integers [c0,c1,..,cd]
+# Input 2: A prime p
+# Output: A list containing 0 or 1 roots of the polynomial c0+c1*x+...+cd x^d
+# in Z/pZ.
+
+# The program searches for a root of the polynomial by evaluating it at points
+# in F_p until it finds a root, or runs out of elements in F_p.
 
 def findRootFp(coefs,p):
     for n in range(p):
@@ -284,9 +306,6 @@ def findRootFp(coefs,p):
 
 
 class supSingData:
-# Computes the 2-isogeny graph using getSupSingRawData;
-# the data can be accessed in the future as self.rawdata
-# without needing to repeat the initial computation.
     def __init__(self,p):
         self.char = p
         self.sqrtDicFp = sqrtDFp(p)
@@ -327,26 +346,8 @@ class supSingData:
 
     # When ab2sChar0 fails to find a model for a supersingular curve, we use
     # ab2find to obtain such a model.
-    
-    def ab2find(self):
-        dsBig = [-11,-19,-43,-67,-163]
-        p = self.char
-        rtd = self.sqrtDicFp
-        ds = [d for d in dsBig if len(rtd[d%p])==0]
-        fg11 = (ElementFp2(p,-264),ElementFp2(p,1694))
-        fg19 = (ElementFp2(p,-152),ElementFp2(p,722))
-        fg43 = (ElementFp2(p,-3440),ElementFp2(p,77658))
-        fg67 = (ElementFp2(p,-29480),ElementFp2(p,1948226))
-        fg163 = (ElementFp2(p,-8697680),ElementFp2(p,9873093538))
-        fgdic = {-11:fg11,-19:fg19,-43:fg43,-67:fg67,-163:fg163}
-        fg0 = fgdic[max(ds)]
-        for n in range(p):
-            x = ElementFp2(p,n)
-            if ((x**3)+fg0[0]*x+fg0[1]).norm() == 0:
-                return [(x.scale(-3),x*x.scale(3)+fg0[0])]
-        return []
 
-    def ab2search(self):
+    def ab2find(self):
         dsBig = [-11,-19,-43,-67,-163]
         p = self.char
         rtd = self.sqrtDicFp
@@ -495,20 +496,6 @@ class supSingData:
             t2 = t*t
             num= (t2+t.scale(-13)+t0.scale(49)) *((t2+t.scale(-5)+t0)**3)
             return (num.scale(-1))//t
-        elif l == 11:
-            x = t[0]
-            if x.vec == (5,0):
-                return ElementFp2(-2**15,0)
-            y = t[1]
-            if x.vec == (16%p,0):
-                if y.vec == ((-60)%p,0):
-                    return ElementFp2(p,-121)
-                else:
-                    return ElementFp2(p,-11*(131**3)%p)
-            n1 = (36*t0+(-6)*x-y)*(((-35)*t0+6*x-y)**3)
-            n1*= ((t0.scale(-429)+x.scale(48)+(x*x).scale(32)+y.scale(120)**3))
-            d1 = (t0.scale(20)+x.scale(-5)-y)*((t0.scale(-19)+x.scale(5)-y)**3)
-            return n1//(d1**2)
         elif l == 13:
             t2 = t*t
             t3 = t2*t
@@ -518,7 +505,141 @@ class supSingData:
             return (n1*n2)//t
         else:
             return 'Not found'
-        
+
+
+    ###########
+    # X_0(11) #
+    ###########
+
+    # x11ptsFromInt #
+    
+    # Input: an integer n
+    # Output: the set of points [(x,y_i)] on X_0(11)
+    # where x = (n%p) + sqrt(d) (n//p).
+
+    def x11ptsFromInt(self,i):
+        p = self.char
+        if i == 16:
+            return [(ElementFp2(p,16),ElementFp2(p,-60))]
+        sqrtdic = self.sqrtDicFp        
+        half = ElementFp2(p,invMod(2,p))
+        x = ElementFp2(p,i%p,i//p)
+        d = x.evalPoly([-79,-40,-4,4])
+        rtds = d.sqrts(sqrtdic)
+        if len(rtds)==0:
+            return []
+        else:
+            rtd = rtds[0]
+            y1 = (ElementFp2(p,1)+rtd)//ElementFp2(p,2)
+            if rtd.norm() == 0:
+                return [(x,y1)]
+            else:
+                return [(x,y1),(x,y1-rtd)]
+
+    # jX0l11 #
+    
+    # Input: a point (x,y) on X_0(11)
+    # Output: the j-invariant of the domain of the isog. rep'd by (x,y)
+    
+
+    def jX0l11(self,pt):
+        p = self.char
+        t0 = ElementFp2(p,1,0)
+        x = pt[0]
+        y = pt[1]
+        if x.vec == (16%p,0) and y.vec== ((-60)%p,0):
+            return ElementFp2(p,(-11*13%p)*(169%p))
+        elif x.vec == (5,0) and y.vec== ((-5)%p,0):
+            return ElementFp2(p,-(2**15))
+        elif x.vec == (5,0):
+            return ElementFp2(p,-121)
+        num0 = x.evalPoly([217,140,-114,12,1])+y*(x.evalPoly([-32,40,-8]))
+        if num0.norm() == 0:
+            return num0
+        num = num0**3
+        den = ((x.evalPoly([51,-29,4])+4*y-x*y)**2)*(x.evalPoly([19,-5])+y)
+        if den.norm() == 0:
+            return 'Singular?'
+        return num//den
+
+    # jX0l11iso #
+    
+    # Input: a point (x,y) on X_0(11)
+    # Output: the j-invariant of the codomain of the isog. rep'd by (x,y)
+
+    def jX0l11iso(self,pt):
+        p = self.char
+        t0 = ElementFp2(p,1,0)
+        x = pt[0]
+        y = pt[1]
+        if x.vec == (16%p,0) and y.vec== ((-60)%p,0):
+            return t0.scale(-121)
+        elif x.vec == (5,0) and y.vec== ((-5)%p,0):
+            return t0.scale(-(2**15))
+        elif x.vec == (5,0):
+            return t0.scale((-11*131%p)*(131*131 %p))
+        x2 = x*x
+        x3 = x2*x
+        xisoN = (x2.scale(16)+x.scale(214)+y.scale(121)+t0.scale(-260))
+        yisoN = x3.scale(61)+x2.scale(2759)+(x*y).scale(726)+x.scale(-3730)
+        yisoN+=y.scale(3025)+t0.scale(-18020)
+        d0 = x + t0.scale(-16)
+        dx = d0*d0
+        xiso = xisoN//dx
+        yiso = yisoN//(dx*d0)
+        xy2 = (xiso,yiso)
+        return self.jX0l11(xy2)
+
+    ###########
+    # isoGr11 #
+    ###########
+
+    # self.isoGr11 computes the 11-isogeny graph
+    
+    def isoGr11(self):
+        p = self.char
+        if p == 61:
+            m61 = [[6,1,1,2,2],[1,7,2,1,1],[1,2,5,2,2],[2,1,2,1,6],[2,1,2,6,1]]
+            jvs = [j.vec for j in self.js()]
+            edges = {}
+            for i in range(5):
+                ji = jvs[i]
+                ri = m61[i]
+                eji = []
+                for i2 in range(5):
+                    eji+=ri[i2]*[jvs[i2]]
+                edges.update({ji:eji})
+            return edges
+        t0 = ElementFp2(p,1,0)
+        js = self.js()
+        jvs = [j.vec for j in js]
+        ssns = [0 for i in range(p**2)]
+        for j in jvs:
+            ssns[j[0]+p*j[1]]+=1
+        edges = {jv:[] for jv in jvs}
+        edgesSeen = 0
+        if p == 131:
+            edges[(0,0)]+=3*[(10,0)]
+            edgesSeen+=3
+        n = 0
+        while n + 1 < p**2 and edgesSeen < len(jvs)*12:
+            ptns = self.x11ptsFromInt(n)
+            for pt in ptns:
+                jpt = self.jX0l11(pt)
+                jtv = jpt.vec
+                if ssns[jtv[0]+p*jtv[1]]>0:
+                    jtv2 = (self.jX0l11iso(pt)).vec
+                    edges[jtv].append(jtv2)
+                    edgesSeen+=1
+                    if jtv == (0,0) and jtv2!= (0,0):
+                        edges[jtv]+=2*[jtv2]
+                        edgesSeen+=2
+                    if jtv == (1728%p,0) and jtv2!= jtv:
+                        edges[jtv]+=[jtv2]
+                        edgesSeen+=1
+            n+=1
+        return edges
+    
     ##################
     # Isogeny Graphs #
     ##################
@@ -526,6 +647,8 @@ class supSingData:
     def isoGr(self,l):
         if l == 2:
             return self.isoGr2()
+        elif l == 11:
+            return self.isoGr11()
         elif l == 5:
             c = 125
         elif l == 7:
@@ -561,6 +684,8 @@ class supSingData:
             n+=1
         return edges
 
+    
+
 
     ######################
     # Adjacency Matrices #
@@ -572,10 +697,12 @@ class supSingData:
 
     def mat(self,l):
         p = self.char
-        if l not in [2,5,7,13]:
-            return 'Not found'
-        else:
+        if l == 2:
+            dic = self.isoGr2()
+        elif l in [5,7,11,13]:
             dic = self.isoGr(l)
+        else:
+            return 'Not found'
         js = list(dic.keys())
         # We sort the j-invariants so that all j-invariants in Fp appear
         # before j-invariants in Fp^2
@@ -598,8 +725,11 @@ class supSingData:
         # Finally, we return the matrix we just produced.
         return mat
 
-ss419 = supSingData(419)
-g2 = ss419.isoGr2()
+
+
+################
+# Prime Finder #
+################
 
 def primesBetween(a,b):
     a = max(2,a)
@@ -655,14 +785,3 @@ def primesBetween(a,b):
     # so we can obtain the set of primes:
     primes = [p for p in range(a,m+1) if cands[p] == 1]
     return primes
-
-
-def checkMat(mat):
-    return list(set([sum(r) for r in mat]))
-
-
-ss193 = supSingData(193)
-
-
-
-m11 = ss193.matOld(11)
