@@ -9,9 +9,10 @@
 # To divide in F_p, we essentially need to be able to solve the diophantine eq
 # ax+by = 1 for x,y. We can do this using the Euclidean algorithm.
 
-# The function invMod takes as input a pair of integers a,p,
-# where p is assumed to be prime and a is assumed to be nonzero,
-# and returns an integer x satisfying ax = 1 mod p.
+# invMod
+
+# Input: a pair of integers a, p, where p is prime and p does not divide a
+# Output: an integer x satisfying ax = 1 mod p.
 
 def invMod(a,p):
     # First, check if we're dividing by 0:
@@ -47,6 +48,11 @@ def invMod(a,p):
     xy = last2[1]
     return (xy[0]*s)%p
 
+# SqrtDFp
+
+# Input: A prime p
+# Output: A dictionary whose keys are integers r in range(p),
+#         and where dic[r] is a list of the square roots of r in Z/p
 
 def sqrtDFp(p):
     rtdic= {a:[] for a in range(p)}
@@ -55,10 +61,11 @@ def sqrtDFp(p):
     return rtdic
 
 
-# chooseNonSquare takes as input a prime p,
-# and returns a suitable nonsquare if one exists.
-# To determine whether integers are squares, we use quadratic reciprocity.
-# If a nonsquare can't be found in the list, an error message is returned.
+# chooseNonSquare
+
+# Input: A prime p, assumed to be smaller than 15073
+# Output: A quadratic nonresidue -d in F_p, where d is a Heegner number
+
 def chooseNonSquare(p):
     # The suitable nonsquares are:
     nonSquares = [-1,-2,-3,-7,-11,-19,-43,-67,-163]
@@ -98,7 +105,7 @@ def chooseNonSquare(p):
 ####################
 
 class ElementFp2:
-# The class is initialized by specifying the 4 integers (p, ns, a, b).
+# The class is initialized by specifying the 3 integers (p, a, b).
     def __init__(self,p,a,b=0):
         self.char = p
         self.nonsquare = chooseNonSquare(p)
@@ -118,20 +125,6 @@ class ElementFp2:
             return str(a)
         else:
             return str(a)+"+"+str(b)+" sqrt(" +str(n)+")"
-# Two elements of Fp2 should be considered equal if the characteristic
-# and nonsquare coincide, and the coefficients coincide mod p.
-    def __eq__(self,other):
-        # First check the characteristics are equal
-        p1 = self.char
-        p2 = other.char
-        if p1!=p2:
-            return False
-        # Check that the coordinates are equal mod p
-        a1 = self.proj1
-        a2 = other.proj1
-        b1 = self.proj2
-        b2 = other.proj2
-        return ((a1-a2)%p1==0) and ((b1-b2)%p1==0) 
 
 # We can add and multiply elements of Fp2.    
     def __add__(self,other):
@@ -386,18 +379,14 @@ class supSingData:
         r1 = rts[1]
         # Next, we compute the change of variable to obtain new pairs (a,b)
         # that represent the original curve.
-        a0 = r0.scale(2)-r1
+        a0 = 2*r0-r1
         b0 = r0 *(r0-r1)
-        a1 = r1.scale(2)-r0
+        a1 = 2*r1-r0
         b1 = r1 * (r1 - r0)
         # We compute the coefficients (-2a, a^2-4b) of the isogenous curves.
         isopairs = []
-        for ab in [ab, (a0,b0), (a1,b1)]:
-            a = ab[0]
-            b = ab[1]
-            a2 = a.scale(-2)
-            b2 = a**2+b.scale(-4)
-            isopairs.append((a2,b2))
+        for ab1 in [ab, (a0,b0), (a1,b1)]:
+            isopairs.append(((-2)*ab1[0],(ab1[0]**2)+(-4)*ab1[1]))
         return isopairs
 
     # j2 is used in the compuation of the 2-isogeny graph to
@@ -471,8 +460,8 @@ class supSingData:
         # The tuples we have are converted into elements of Fp2,
         # and the answer is returned.
         return [ElementFp2(p,ab[0],ab[1]) for ab in jvs]
+        
     
-            
     ##########################
     # Modular Curve Formulas #
     ##########################
@@ -487,22 +476,18 @@ class supSingData:
     # Input: an integer l in {5,7,13}; a nonzero element t in F_p^2
     # Output: the j-invariant of the associated curve, as an element of F_p^2
     
+
     def jX0(self,l,t):
         p = self.char
         t0 = ElementFp2(p,1)
-        if l == 5:
-            return ((t*t+t.scale(10)+t0.scale(5))**3)//t
+        if l == 3:
+            return ((t.evalPoly([-4,3]))**3)*(t.evalPoly([4,-27]))//(4*(t**3))
+        elif l == 5:
+            return ((t.evalPoly([5,10,1]))**3)//t
         elif l == 7:
-            t2 = t*t
-            num= (t2+t.scale(-13)+t0.scale(49)) *((t2+t.scale(-5)+t0)**3)
-            return (num.scale(-1))//t
+            return (t.evalPoly([-49,13,-1]))*((t.evalPoly([1,-5,1]))**3)//t
         elif l == 13:
-            t2 = t*t
-            t3 = t2*t
-            t4 = t2*t2
-            n1 = (t4+t3.scale(-7)+t2.scale(20)+t.scale(-19)+t0)**3
-            n2 = t2.scale(-1)+t.scale(5)+t0.scale(-13)
-            return (n1*n2)//t
+            return ((t.evalPoly([1,-19,20,-7,1]))**3)*t.evalPoly([-13,5,-1])//t
         else:
             return 'Not found'
 
@@ -645,10 +630,13 @@ class supSingData:
     ##################
 
     def isoGr(self,l):
+        p = self.char
         if l == 2:
             return self.isoGr2()
         elif l == 11:
             return self.isoGr11()
+        elif l == 3:
+            c = ((4*invMod(27,p))**2)%p
         elif l == 5:
             c = 125
         elif l == 7:
@@ -657,7 +645,6 @@ class supSingData:
             c = 13
         else:
             return 'Not found'
-        p = self.char
         t0 = ElementFp2(p,1)
         js = self.js()
         jvs = [j.vec for j in js]
@@ -685,8 +672,6 @@ class supSingData:
         return edges
 
     
-
-
     ######################
     # Adjacency Matrices #
     ######################
@@ -699,7 +684,7 @@ class supSingData:
         p = self.char
         if l == 2:
             dic = self.isoGr2()
-        elif l in [5,7,11,13]:
+        elif l in [3,5,7,11,13]:
             dic = self.isoGr(l)
         else:
             return 'Not found'
@@ -785,3 +770,4 @@ def primesBetween(a,b):
     # so we can obtain the set of primes:
     primes = [p for p in range(a,m+1) if cands[p] == 1]
     return primes
+
