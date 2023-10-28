@@ -9,44 +9,6 @@
 # To divide in F_p, we essentially need to be able to solve the diophantine eq
 # ax+by = 1 for x,y. We can do this using the Euclidean algorithm.
 
-# invMod
-
-# Input: a pair of integers a, p, where p is prime and p does not divide a
-# Output: an integer x satisfying ax = 1 mod p.
-
-def invMod(a,p):
-    # First, check if we're dividing by 0:
-    if a % p == 0:
-        return '1/0'
-    m = a % p
-    n = p
-    # We're going to find solutions x, y to the equation
-    # ax + py = 1, by starting with two initial approximations
-    # and obtaining increasingly good close values of x,y using
-    # the Euclidean algorithm.
-    last2 = [[0,1],[1,0]]
-    s = 1
-    # Our last 2 approximations are recorded in lst4.
-    while n % m !=0:
-        # We obtain q, r such that n = q m + r
-        q = n//m
-        r = n % m
-        # We will use q to obtain a better approximation.
-        x2 = q*last2[1][0]+last2[0][0]
-        y2 = q*last2[1][1]+last2[0][1]
-        # The pair (x2, y2) is an even better approximation of x,y.
-        # We only need to keep our two most recent approximations:
-        last2 += [[x2,y2]]
-        last2 = last2[1:]
-        n = m
-        m = r
-        # Finally, we multiply s by -1 to keep track of the parity
-        # of the number of steps we've taken.
-        s*=-1
-    # The final pair (x,y) we obtain will satisfy ax-py = +/- 1,
-    # where the sign is determined by s.
-    xy = last2[1]
-    return (xy[0]*s)%p
 
 # SqrtDFp
 
@@ -145,50 +107,22 @@ class ElementFp2:
         a3 = (a1*a2+ns*b1*b2) % p
         b3 = (a1*b2+a2*b1) % p
         return ElementFp2(p,a3,b3)
-    def __pow__(self,other):
-        if self.norm()==0:
-            return self
-        p = self.char
-        e = other % (p-1)
-        if e == 0:
-            return self//self
-        elif e == 1:
-            return self
-        else:
-            be = list(bin(e)[2:])[::-1]
-            a = self
-            a2ns = [a]
-            while len(a2ns)<len(be):
-                a2ns.append(a2ns[-1]*a2ns[-1])
-            ae = a//a
-            for i in range(len(be)):
-                if be[i]=='1':
-                    ae*=a2ns[i]
-            return ae
-    def __rmul__(self,other):
+    def __rmul__(self,n):
         p = self.char
         v= self.vec
-        return ElementFp2(p,(v[0]*other)%p,(v[1]*other)%p)
-    def evalPoly(self,coefs):
+        return ElementFp2(p,(v[0]*n)%p,(v[1]*n)%p)
+    def __neg__(self):
+        return (-1)*self
+    def __sub__(self,other):
+        return self+(-other)
+    def eval_poly(self,coefs):
         p = self.char
         t0 = ElementFp2(p,1)
-        t = self
-        tn = t0
-        evt = ElementFp2(p,0)
-        for c in coefs:
-            evt+=c*tn
-            tn*=t
-        return evt
-# Given an element x in Fp2 and an integer c,
-# we can compute the scalar multiple cx by x.scale(c)
-    def scale(self,c):
-        p = self.char
-        cfp2 = ElementFp2(p,c,0)
-        return self*cfp2
-# We can subtract elements.
-# Subtraction is implemented by combining addition and scalar multiplication
-    def __sub__(self,other):
-        return self + (-1)*other
+        ev = ElementFp2(p,0)
+        for c in coefs[::-1]:
+            ev*=self
+            ev+=c *t0
+        return ev
 # x.conj() returns the Galois conjugate of x    
     def conj(self):
         a = self.proj1
@@ -205,24 +139,29 @@ class ElementFp2:
         cnj = self.conj()
         tr2 = self+cnj
         return tr2.proj1
-    
-# x.multInv() returns the multiplicative inverse of x.
-# The norm and conjugate of x are computed.
-# The multiplicative inverse of the norm is computed using invMod,
-# and the inverse of x is then computed by rescaling the conjugate of x
-# by the inverse of the norm of x.
-    def multInv(self):
-        cnj = self.conj()
-        nrm2 = self*cnj
-        n = nrm2.proj1
+
+    def __pow__(self,n):
+        if self.norm()==0:
+            return self
         p = self.char
-        ninv = invMod(n,p)
-        return ninv*cnj
-        
+        an = ElementFp2(p,1)
+        a = self
+        if n < 0:
+            a_norm = (a*a.conj()).proj1
+            # We replace a by its multiplicative inverse
+            a = pow(a_norm,-1,p)*a.conj()
+            n*= (-1)
+        while n > 0:
+            if n % 2 == 1:
+                an*= a
+            a*=a
+            n = n//2
+        return an
 
     def __floordiv__(self,other):
-        return self * other.multInv()
+        return self * pow(other,-1)
 
+    
     def sqrts(self,dic):
         nrm = self.norm()
         p = self.char
@@ -237,7 +176,7 @@ class ElementFp2:
             if len(dic[a])>0:
                 return [ElementFp2(p,x) for x in dic[a]]
             else:
-                adinv=(a*invMod(d,p))%p
+                adinv=(a*pow(d,-1,p))%p
                 return [ElementFp2(p,0,y) for y in dic[adinv]]
         else:
             rtnrm = dic[nrm][0]
@@ -245,12 +184,12 @@ class ElementFp2:
             if len(dic[x2])==0:
                 x2 = ((a-rtnrm)*((p+1)//2))%p
             x1 = dic[x2][0]
-            y1 = (b * invMod(2*x1,p))%p
+            y1 = (b * pow(2*x1,-1,p))%p
             sqrt1 = ElementFp2(p,x1,y1)
             sqrt2 = (-1)*sqrt1
             return [sqrt1,sqrt2]
 
-    def minPolyCoefs(self):
+    def min_poly_coefs(self):
         a = self.proj1
         b = self.proj2
         p = self.char
@@ -271,7 +210,7 @@ def solveQuadFp2(ab,dic):
     p = a.char
     cp = a//ElementFp2(p,-2)
     disc = a*a+((-4)*b)
-    return [cp+(invMod(2,p)*rtd) for rtd in disc.sqrts(dic)]
+    return [cp+(pow(2,-1,p)*rtd) for rtd in disc.sqrts(dic)]
 # Note that input 2 can be obtained using sqrtDFp.
 
 # findRootFp 
@@ -507,7 +446,7 @@ class supSingData:
         if i == 16:
             return [(ElementFp2(p,16),ElementFp2(p,-60))]
         sqrtdic = self.sqrtDicFp        
-        half = ElementFp2(p,invMod(2,p))
+        half = ElementFp2(p,pow(2,-1,p))
         x = ElementFp2(p,i%p,i//p)
         d = x.evalPoly([-79,-40,-4,4])
         rtds = d.sqrts(sqrtdic)
@@ -636,7 +575,7 @@ class supSingData:
         elif l == 11:
             return self.isoGr11()
         elif l == 3:
-            c = ((4*invMod(27,p))**2)%p
+            c = ((4*pow(27,-1,p))**2)%p
         elif l == 5:
             c = 125
         elif l == 7:
