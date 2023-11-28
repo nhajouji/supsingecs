@@ -15,4 +15,8 @@ The code can be used to compute the following:
 *   The supersingular isogeny graph for all pairs p, l where l is a supersingular prime.
 *   The trace of the adjacency matrix of the supersingular isogeny graph for all pairs of primes p, l.
 
+## Theory
+The algorithms are based on the results in:
 
+_Supersingular Isogeny Graphs from Algebraic Modular Curves_
+(available at https://arxiv.org/abs/2303.09096)
