@@ -420,12 +420,12 @@ def two_iso_graph(p):
 
 def graph2mat(g):
     js = list(g.keys())
-    jis = {int(js[i]):i for i in range(len(js))}
+    jis = {js[i]:i for i in range(len(js))}
     mat = []
     for j1 in js:
         jr = [0 for j in js]
         for j2 in g[j1]:
-            jr[jis[int(j2)]]+=1
+            jr[jis[j2]]+=1
         mat.append(jr)
     return mat
 
@@ -489,9 +489,7 @@ class SupSingGraphs:
                     gr[int(xys[1])]+= e1* [int(xys[0])]
         for jn in gr:
             gr[jn]+=(l+1-len(gr[jn]))*[jn]
-    # To be consistent with g2, we will change the keys and values to elements of fp2.
-        grfp2 = {EltFp2(jn,p):[EltFp2(jm,p) for jm in gr[jn]] for jn in gr}
-        return grfp2
+        return gr
 
     def adj_matrix(self,l):
         if l not in supersingularprimes:
